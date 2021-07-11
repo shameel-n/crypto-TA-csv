@@ -1,16 +1,19 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/smtp"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/gomail.v2"
 )
 
 type ResponseBody struct {
@@ -32,22 +35,26 @@ type ResponseBody struct {
 func main() {
 	//fmt.Println("happy trading")
 	// log.Fatal(http.ListenAndServe(":"+port, nil))
-	send("Deployed Successfully, Happy trading", "Deployment Status")
+	//send("Deployed Successfully, Happy trading ", "Deployment Status by Azure")
 	ii := 0
 	i := true
 	for i {
-		plot(6.0)
+		err := plot(2.0)
+		if err != nil {
+			continue
+		}
 		time.Sleep(60 * time.Second)
 
 		//i = false
 		ii = ii + 1
-		sendSMS("testing Deployment " + strconv.Itoa(ii))
+		// sendSMS("testing Deployment " + strconv.Itoa(ii))
+		// send(strconv.Itoa(ii), "testing Deployment ")
 
 	}
 
 }
 
-func plot(threshold float64) {
+func plot(threshold float64) error {
 
 	var sym, lim []string
 	bla := false
@@ -58,6 +65,8 @@ func plot(threshold float64) {
 
 	mailBody := ""
 	smsBody := ""
+	//csvdata:=
+	var csvdata [][]string
 	for i, v := range sym {
 		//fmt.Println(v) //1
 
@@ -98,6 +107,7 @@ func plot(threshold float64) {
 			smsBody = smsBody + `
 			Buy ` + v + ` potential ` + fmt.Sprintf("%f", buyfactor)
 			mailBody = mailBody + mssgBody
+			csvdata = append(csvdata, []string{"Buy", v, fmt.Sprintf("%f", buyfactor)})
 
 			//send(mssgBody,"Buy "+v)
 		}
@@ -105,9 +115,12 @@ func plot(threshold float64) {
 	}
 	//fmt.Println(mailBody)
 	if bla {
-		send(mailBody, "Buy at threshold "+fmt.Sprintf("%f", threshold))
-		sendSMS(smsBody)
+		fmt.Println(csvdata)
+		createcsv(csvdata)
+		send(mailBody, "Az Buy at threshold "+fmt.Sprintf("%f", threshold))
+		//sendSMS(smsBody + " Az")
 	}
+	return nil
 }
 
 func getOrders(sym, lim string) ResponseBody {
@@ -152,28 +165,44 @@ func findTotalVolbyPrice(pricevsVol [][]string) (float64, float64) {
 	//return (vol)
 }
 
+// func send(body, sub string) {
+// 	from := "apigeetest23@gmail.com"
+// 	pass := ".mnbvcxz.1"
+// 	to := "shahulhameed28p@gmail.com"
+
+// 	msg := "From: " + from + "\n" +
+// 		"To: " + to + "\n" +
+// 		"Subject: " + sub + "\n\n" +
+// 		body
+
+// 	err := smtp.SendMail("smtp.gmail.com:587",
+// 		smtp.PlainAuth("", from, pass, "smtp.gmail.com"),
+// 		from, []string{to}, []byte(msg))
+
+// 	if err != nil {
+// 		log.Printf("smtp error: %s", err)
+// 		return
+// 	}
+
+// 	log.Print("sent")
+// }
 func send(body, sub string) {
-	from := "apigeetest23@gmail.com"
-	pass := ".mnbvcxz.1"
-	to := "shahulhameed28p@gmail.com"
+	m := gomail.NewMessage()
+	m.SetHeader("From", "apigeetest23@gmail.com")
+	m.SetHeader("To", "shahulhameed28p@gmail.com")
+	//m.SetAddressHeader("Cc", "dan@example.com", "Dan")
+	m.SetHeader("Subject", sub)
+	m.SetBody("text/plain", body)
+	m.Attach("testdata.csv")
 
-	msg := "From: " + from + "\n" +
-		"To: " + to + "\n" +
-		"Subject: " + sub + "\n\n" +
-		body
+	d := gomail.NewPlainDialer("smtp.gmail.com", 587, "apigeetest23@gmail.com", ".mnbvcxz.1")
 
-	err := smtp.SendMail("smtp.gmail.com:587",
-		smtp.PlainAuth("", from, pass, "smtp.gmail.com"),
-		from, []string{to}, []byte(msg))
-
-	if err != nil {
-		log.Printf("smtp error: %s", err)
-		return
+	// Send the email to Bob, Cora and Dan.
+	if err := d.DialAndSend(m); err != nil {
+		panic(err)
 	}
-
 	log.Print("sent")
 }
-
 func sendSMS(body string) {
 	accountSid := "AC0b9e944cbf5a09e163c975cb558c2efb"
 	authToken := "1a6b0683872a56b2ff5d56e023de20ec"
@@ -200,4 +229,24 @@ func sendSMS(body string) {
 		fmt.Println(resp.Status)
 	}
 	//+14158775523
+}
+
+func createcsv(data [][]string) {
+	empData := data
+
+	csvFile, err := os.Create("testdata.csv")
+
+	if err != nil {
+		log.Fatalf("failed creating file: %s", err)
+	}
+
+	csvwriter := csv.NewWriter(csvFile)
+
+	for _, empRow := range empData {
+		_ = csvwriter.Write(empRow)
+	}
+
+	csvwriter.Flush()
+	csvFile.Close()
+	send("This is Gomail test body", "dbtest")
 }

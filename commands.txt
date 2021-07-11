@@ -1,0 +1,22 @@
+step 1: update the code
+step 2: Build the dockerfile
+docker build -t 1234abc28/crypto:v1 .
+step 3: Push the image to docker hub
+docker push 1234abc28/crypto:v1
+step 4: Change the context to azure docker context(myacicontext)
+docker context use myacicontext
+step 5: Log in to azure
+docker login azure
+step 6: Run the image
+docker run -p 80:80 1234abc28/crypto:v1
+
+
+see the list of images running
+docker ps
+
+stop running image
+
+remove the image 
+
+step 5: Pull the image in myacicontext
+docker pull 1234abc28/crypto:v1 
